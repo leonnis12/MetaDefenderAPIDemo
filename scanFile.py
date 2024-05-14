@@ -111,7 +111,7 @@ def main():
         if analysis_success!=True:
             print("Could not start sample analysis")
             return
-        print(analysis_response)
+        # print(analysis_response)
         submission_id = analysis_response["data_id"]
         
         print("Waiting for analysis to complete...")
