@@ -4,6 +4,8 @@ import hashlib
 import requests
 import argparse
 import ntpath
+from colorama import just_fix_windows_console, Fore, Back, Style
+from colorama import Fore, Back, Style
 from time import sleep
 from dotenv import load_dotenv
 
@@ -16,6 +18,11 @@ from dotenv import load_dotenv
 # - Create .env file with the API_KEY and FILE_TO_SCAN 
 #   If the file is specified as an arg. it supersedes the one from env.
 # - Run the script with > python3 scanFile.py [samplefile.txt]
+
+# This script uses a wrapper around the API to encapsulate the interactions with specific endpoints. Based on it's usecase and integration,
+# the handling of the response errors could be implemented more generalized, or more thoroughly. The sleep implementation could be replaced,
+# with threading for not blocking the entire program, again depending on the usecase, but for this example it was out of scope. 
+
 
 class APIWrapper:
     api_base_url = "https://api.metadefender.com/v4/"
@@ -44,6 +51,7 @@ class APIWrapper:
         # Request succeeded with 200
         return (True, 200, response.json())
     
+    # Call the check hash endpoint to check if the file was scanned before, and get it's results
     def check_hash(self, hash):
         lookup_url = self.api_base_url + "hash/" + hash
         headers = {
@@ -52,6 +60,7 @@ class APIWrapper:
         response = requests.request("GET", lookup_url, headers=headers)
         return self.__handle_API_response(response)
     
+    # Call the analyze file endpoint to submit a file for analysis
     def analyze_file(self, file_path):
         analyze_url = self.api_base_url + "file"
         headers = {
@@ -67,6 +76,8 @@ class APIWrapper:
             files = {"file": file}
             response = requests.request("POST", analyze_url, headers=headers, files=files)
         return self.__handle_API_response(response)
+    
+    # Retreive a running analysis status, and it's results
     def fetch_analysis_result(self, dataId):
         result_url = self.api_base_url + "file/" + dataId
         headers = {
@@ -89,16 +100,16 @@ def main():
     # Overrite file to scan if specified
     FILE_TO_SCAN = args.filename
     
-    print("Filename: " + FILE_TO_SCAN)
+    print(Fore.LIGHTRED_EX + "Filename: " + Fore.GREEN + FILE_TO_SCAN)
     if not os.path.exists(FILE_TO_SCAN):
-        print("File does not exist")
+        print(Fore.LIGHTRED_EX + "File does not exist", file=sys.stderr)
         return
     
     # Calculate hash
     hash = ""
     with open(FILE_TO_SCAN, 'rb') as f:
         hash = hashlib.file_digest(f, 'sha256').hexdigest()
-    print("Calculated hash: " + hash)
+    print(Fore.LIGHTRED_EX + "Calculated hash: " + Fore.GREEN + hash)
     
     # Scan the selected file
     api = APIWrapper(API_KEY)
@@ -109,7 +120,7 @@ def main():
         print("Submitting file for scanning.")
         (analysis_success, analysis_code, analysis_response) = api.analyze_file(FILE_TO_SCAN)
         if analysis_success!=True:
-            print("Could not start sample analysis")
+            print(Fore.LIGHTRED_EX + "Could not start sample analysis", file=sys.stderr)
             return
         # print(analysis_response)
         submission_id = analysis_response["data_id"]
@@ -119,30 +130,30 @@ def main():
         while(scan_percentage != 100):
             (result_success, result_code, result_response) = api.fetch_analysis_result(submission_id)
             if result_success != True:
-                print("Failed to check for submission results")
+                print(Fore.LIGHTRED_EX + "Failed to check for submission results", file=sys.stderr)
                 return
             scan_percentage = result_response["scan_results"]["progress_percentage"]
             # Wait 10 seconds before checking again
             sleep(10)
-            
+        # Check if the hash exists in cache
+        (success, code, response) = api.check_hash(hash)
+        if success==False:
+            print(Fore.LIGHTRED_EX + "The file was analized, but is not present in the cache", file=sys.stder)
+            return
     elif success==True and code==200:
         print("Hash is present in the cache.")
     
-    # Either the hash is found, or the analisys is complete
-    (success, code, response) = api.check_hash(hash)
-    if success==False:
-        print("The file was analized, but is not present in the cache")
-        return
-    else:
-        # print(response)
-        print("Overall status: " + str(response["scan_results"]["scan_all_result_a"]))
-        
-        for av_name, av_result in response["scan_results"]["scan_details"].items():
-            print("---------------------------")
-            print("Engine: "+ av_name)
-            print("ThreatFound: "+ av_result["threat_found"])
-            print("ScanResult: "+ str(av_result["scan_result_i"]))
-            print("DefTime: "+ av_result["def_time"])
+    # Display scan results
+    print(Fore.LIGHTRED_EX + "Overall status: " + Fore.GREEN + str(response["scan_results"]["scan_all_result_a"]))
+    for av_name, av_result in response["scan_results"]["scan_details"].items():
+        print("---------------------------")
+        print(Fore.LIGHTRED_EX + "Engine: " + Fore.GREEN + av_name)
+        print(Fore.LIGHTRED_EX + "ThreatFound: " + Fore.GREEN + av_result["threat_found"])
+        print(Fore.LIGHTRED_EX + "ScanResult: " + Fore.GREEN + str(av_result["scan_result_i"]))
+        print(Fore.LIGHTRED_EX + "DefTime: " + Fore.GREEN + av_result["def_time"])
         
 if __name__ == "__main__":
+    # Fix ANSI escapes for Windows
+    just_fix_windows_console()
     main()
+    print(Style.RESET_ALL)
