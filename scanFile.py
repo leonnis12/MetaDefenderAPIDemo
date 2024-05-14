@@ -19,9 +19,12 @@ from dotenv import load_dotenv
 #   If the file is specified as an arg. it supersedes the one from env.
 # - Run the script with > python3 scanFile.py [samplefile.txt]
 
-# This script uses a wrapper around the API to encapsulate the interactions with specific endpoints. Based on it's usecase and integration,
+# This script uses a wrapper around the v4 API to encapsulate the interactions with specific endpoints. Based on it's usecase and integration,
 # the handling of the response errors could be implemented more generalized, or more thoroughly. The sleep implementation could be replaced,
 # with threading for not blocking the entire program, again depending on the usecase, but for this example it was out of scope. 
+
+# Also, for the "Fetch analysis result" endpoint, scan_results.progress_percentage is mentioned in the description in the docs, but not in the
+# response body specification a few lines below. Still it appeared to be sent, so it was used for describing the progress.
 
 
 class APIWrapper:
